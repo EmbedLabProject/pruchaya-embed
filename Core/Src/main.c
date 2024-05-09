@@ -93,13 +93,23 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  int adcval = 0;
+  char buf[256];
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  HAL_ADC_Start(&hadc1);
+	  // Wait for 1000ms or when the conversion is finished.
+	  if (HAL_ADC_PollForConversion(&hadc1, 1000) == HAL_OK) {
+	  // Read the ADC value
+		  adcval = HAL_ADC_GetValue(&hadc1);
+	  // Write integer to buffer
+		  sprintf (buf, "%d\r\n" , adcval);
+		  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
