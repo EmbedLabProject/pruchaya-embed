@@ -98,8 +98,17 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  int adcval = 0;
   char buf[256];
+  /*
+  int dutycycle1 = 0;
+  int dutycycle2 = 0;
+  int dutycycle3 = 0;
+  int dutycycle4 = 0;
+  */
+  int maxLightSensor = 0;
+  int minLightSensor = 10000000;
+  int maxHumidSensor = 0;
+  int minHumidSensor = 10000000;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -120,7 +129,20 @@ int main(void)
 	  }
 	  conversionComplete = 0;
 	  //sprintf (buf, "s1 = %d ,s2 = %d ,s3 = %d ,s4 = %d \r\n" , resultDMA[0], resultDMA[1], resultDMA[2], resultDMA[3]);
-	  sprintf (buf, "light = %d ,humid = %d \r\n" , resultDMA[0], resultDMA[1]);
+	  //sprintf (buf, "light = %d ,humid = %d \r\n" , resultDMA[0], resultDMA[1]);
+	  if (minLightSensor >= resultDMA[0]) {
+		  minLightSensor = resultDMA[0];
+	  }
+	  if (maxLightSensor < resultDMA[0]) {
+	  		  maxLightSensor = resultDMA[0];
+	  }
+	  if (minHumidSensor >= resultDMA[1]) {
+		  minHumidSensor = resultDMA[1];
+	  }
+	  if (maxHumidSensor < resultDMA[1]) {
+	  	  maxHumidSensor = resultDMA[1];
+	  }
+	  sprintf (buf, "minL = %d, maxL = %d, minH = %d ,maxH = %d\r\n" , minLightSensor, maxLightSensor, minHumidSensor, maxHumidSensor);
 	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
 	  HAL_Delay(100);
     /* USER CODE END WHILE */
