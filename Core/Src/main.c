@@ -119,7 +119,8 @@ int main(void)
 
 	  }
 	  conversionComplete = 0;
-	  sprintf (buf, "s1 = %d ,s2 = %d ,s3 = %d ,s4 = %d \r\n" , resultDMA[0], resultDMA[1], resultDMA[2], resultDMA[3]);
+	  //sprintf (buf, "s1 = %d ,s2 = %d ,s3 = %d ,s4 = %d \r\n" , resultDMA[0], resultDMA[1], resultDMA[2], resultDMA[3]);
+	  sprintf (buf, "light = %d ,humid = %d \r\n" , resultDMA[0], resultDMA[1]);
 	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
 	  HAL_Delay(100);
     /* USER CODE END WHILE */
