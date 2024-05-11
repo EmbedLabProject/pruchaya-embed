@@ -98,29 +98,56 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  int adcval = 0;
   char buf[256];
+  double maxLight = 4000;
+  double minLight = 0;
+  double maxHumid = 1350;
+  double minHumid = 0;
+  int dutycycleLight = 0;
+  int dutycycleHumid = 0;
+  int dutycycle3 = 0;
+  int dutycycle4 = 0;
+  double cLight;
+  double pLight = maxLight - minLight;
+  double cHumid;
+  double pHumid = maxHumid -  minHumid;
+  /* This is for callibration, report max/min
+  int maxLightSensor = 0;
+  int minLightSensor = 10000000;
+  int maxHumidSensor = 0;
+  int minHumidSensor = 10000000;
+  */
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  	/*
-	  HAL_ADC_Start(&hadc1);
-	  if (HAL_ADC_PollForConversion(&hadc1, 1000) == HAL_OK) {
-		  adcval = HAL_ADC_GetValue(&hadc1);
-		  sprintf (buf, "%d\r\n" , adcval);
-		  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
-	  }
-	  */
 	  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) resultDMA, channelCount);
-	  while (conversionComplete == 0) {
+	  while (conversionComplete == 0) { //do something while current data is not recieve from sensor
 
 	  }
 	  conversionComplete = 0;
-	  //sprintf (buf, "s1 = %d ,s2 = %d ,s3 = %d ,s4 = %d \r\n" , resultDMA[0], resultDMA[1], resultDMA[2], resultDMA[3]);
-	  sprintf (buf, "light = %d ,humid = %d \r\n" , resultDMA[0], resultDMA[1]);
+	  cLight = maxLight - resultDMA[0];
+	  dutycycleLight = (1 - cLight/pLight)*100;
+	  cHumid = maxHumid - resultDMA[1];
+	  dutycycleHumid = (1- cHumid/pHumid)*100;
+	  sprintf(buf, "light = %d %c,humid = %d %c \r\n" , dutycycleLight, '%',dutycycleHumid, '%');
+	  /* This is for callibration, report max/min
+	  if (minLightSensor >= resultDMA[0]) {
+		  minLightSensor = resultDMA[0];
+	  }
+	  if (maxLightSensor < resultDMA[0]) {
+	  		  maxLightSensor = resultDMA[0];
+	  }
+	  if (minHumidSensor >= resultDMA[1]) {
+		  minHumidSensor = resultDMA[1];
+	  }
+	  if (maxHumidSensor < resultDMA[1]) {
+	  	  maxHumidSensor = resultDMA[1];
+	  }
+	  sprintf (buf, "minL = %d, maxL = %d, minH = %d ,maxH = %d\r\n" , minLightSensor, maxLightSensor, minHumidSensor, maxHumidSensor);
+	  */
 	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
 	  HAL_Delay(100);
     /* USER CODE END WHILE */
