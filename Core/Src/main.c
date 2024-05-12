@@ -46,9 +46,9 @@ DMA_HandleTypeDef hdma_adc1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-volatile uint16_t resultDMA[4];
-const int channelCount = sizeof(resultDMA) / sizeof(resultDMA[0]);
-volatile int conversionComplete = 0;
+//initialize buffer for input, currently allow 4
+volatile uint16_t resultDMA[4]; //initialize buffer to get input
+const int channelCount = sizeof(resultDMA) / sizeof(resultDMA[0]); //calculate number of conversion split
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,6 +63,44 @@ static void MX_ADC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+//Initialize every variable here
+  //both min and max for every sensor's data
+  const double maxLight = 4000;
+  const double minLight = 0;	//current min/max might be faulty, when recalibrate just fix number here
+  const double maxHumid = 1350;
+  const double minHumid = 0;
+  const double maxSensor3;	//for future sensor, put min/max here when calibrate
+  const double minSensor3;	//can be delete if there is no sensor 3,4
+  const double maxSensor4;
+  const double minSensor4;
+
+  //for duty cycle calculation, please look up formular in document
+  double pLight = 4000;
+  double pHumid = 1350;	//it's max-min for each sensor
+  double pSensor3;	//for future sensor
+  double pSensor4;
+
+  //buffer to send continous data
+  char buf[256];
+
+
+  //This is for calibration(1)
+  int maxSensor = 0;
+  int minSensor = 10000000;
+  char buf_cal[256];
+
+  //dutycycle of each sensor, calculate in callback of DMA
+  int dutycycleLight = 0;
+  int dutycycleHumid = 0;
+  int dutycycle3 = 0;
+  int dutycycle4 = 0;
+
+  //for duty cycle calculation, please look up formular in document
+  double cLight;
+  double cHumid;	//it's max-current_data for each sensor, calculate in callback of DMA
+  double cSensor3;
+  double cSensor4;
+
 
 /* USER CODE END 0 */
 
@@ -98,24 +136,11 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  char buf[256];
-  double maxLight = 4000;
-  double minLight = 0;
-  double maxHumid = 1350;
-  double minHumid = 0;
-  int dutycycleLight = 0;
-  int dutycycleHumid = 0;
-  int dutycycle3 = 0;
-  int dutycycle4 = 0;
-  double cLight;
-  double pLight = maxLight - minLight;
-  double cHumid;
-  double pHumid = maxHumid -  minHumid;
-  /* This is for callibration, report max/min
-  int maxLightSensor = 0;
-  int minLightSensor = 10000000;
-  int maxHumidSensor = 0;
-  int minHumidSensor = 10000000;
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) resultDMA, channelCount); //start first poling here
+  /* enable this for calibration(1)
+  int maxSensor = 0;
+  int minSensor = 10000000;
+  char buf_cal[256];
   */
   /* USER CODE END 2 */
 
@@ -123,33 +148,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) resultDMA, channelCount);
-	  while (conversionComplete == 0) { //do something while current data is not recieve from sensor
-
-	  }
-	  conversionComplete = 0;
-	  cLight = maxLight - resultDMA[0];
-	  dutycycleLight = (1 - cLight/pLight)*100;
-	  cHumid = maxHumid - resultDMA[1];
-	  dutycycleHumid = (1- cHumid/pHumid)*100;
-	  sprintf(buf, "light = %d %c,humid = %d %c \r\n" , dutycycleLight, '%',dutycycleHumid, '%');
-	  /* This is for callibration, report max/min
-	  if (minLightSensor >= resultDMA[0]) {
-		  minLightSensor = resultDMA[0];
-	  }
-	  if (maxLightSensor < resultDMA[0]) {
-	  		  maxLightSensor = resultDMA[0];
-	  }
-	  if (minHumidSensor >= resultDMA[1]) {
-		  minHumidSensor = resultDMA[1];
-	  }
-	  if (maxHumidSensor < resultDMA[1]) {
-	  	  maxHumidSensor = resultDMA[1];
-	  }
-	  sprintf (buf, "minL = %d, maxL = %d, minH = %d ,maxH = %d\r\n" , minLightSensor, maxLightSensor, minHumidSensor, maxHumidSensor);
-	  */
-	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
-	  HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -387,8 +385,41 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+//main function to get result
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-	conversionComplete = 1;
+	//(2) this is for continous streaming, send all data to terminal
+	cLight = maxLight - resultDMA[0];
+	dutycycleLight = (1 - cLight/pLight)*100;
+	cHumid = maxHumid - resultDMA[1];
+	dutycycleHumid = (1- cHumid/pHumid)*100;
+	/* this is for future sensor
+	cSensor3 = maxSensor3 - resultDMA[2];
+	dutycycleSensor3 = (1 - cSensor3/pSensor3)*100;
+	cSensor4 = maxSensor4 - resultDMA[3];
+	dutycycleSensor4 = (1- cSensor4/pSensor4)*100;
+	*/
+
+	//print contnous result for every poling
+	sprintf(buf, "light = %d %c,humid = %d %c, sensor3 = %d %c, sensor4 = %d %c \r\n" ,dutycycleLight, '%',dutycycleHumid, '%',dutycycle3, '%',dutycycle4, '%');
+	HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
+	//(2) continous mode end
+
+	/*
+	//(1) this is for sensor calibration
+	if (minSensor >= resultDMA[0]) { //change x to number of calibrating sensor
+		minSensor = resultDMA[0];	//0 = Light, 1 = Humid, 2 = Sensor3, 3 = Sensor4
+	}
+	if (maxSensor < resultDMA[0]) {
+		maxSensor = resultDMA[0];
+	}
+	sprintf (buf_cal, "min = %d, max = %d \r\n", minSensor, maxSensor);
+	HAL_UART_Transmit(&huart2, buf_cal, strlen(buf_cal), 1000);
+	*/
+
+
+	//this call for next poling
+	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) resultDMA, channelCount);
+
 }
 /* USER CODE END 4 */
 
