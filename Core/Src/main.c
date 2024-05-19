@@ -43,6 +43,7 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -57,13 +58,21 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void send_to_nodeMCU(char buf[256]) {
+	int string_length = strlen(buf);
+	for(int i = 0;i < string_length;i++) {
+		HAL_UART_Transmit(&huart1, buf + i, 1, 1000);
+		char* acknowledge;
+		HAL_UART_Receive(&huart1,acknowledge,1,500);
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -97,20 +106,25 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_ADC1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   char buf[256];
   double maxLight = 4000;
   double minLight = 0;
   double maxHumid = 1350;
   double minHumid = 0;
+  double maxVibrate = 1000;
+  double minVibrate = 0;
   int dutycycleLight = 0;
   int dutycycleHumid = 0;
-  int dutycycle3 = 0;
+  int dutycycleVibrate = 0;
   int dutycycle4 = 0;
   double cLight;
   double pLight = maxLight - minLight;
   double cHumid;
   double pHumid = maxHumid -  minHumid;
+  double cVibrate;
+  double pVibrate = maxVibrate - minVibrate;
   /* This is for callibration, report max/min
   int maxLightSensor = 0;
   int minLightSensor = 10000000;
@@ -131,14 +145,17 @@ int main(void)
 	  cLight = maxLight - resultDMA[0];
 	  dutycycleLight = (1 - cLight/pLight)*100;
 	  cHumid = maxHumid - resultDMA[1];
-	  dutycycleHumid = (1- cHumid/pHumid)*100;
-	  sprintf(buf, "light = %d %c,humid = %d %c \r\n" , dutycycleLight, '%',dutycycleHumid, '%');
+	  dutycycleHumid = (1 - cHumid/pHumid)*100;
+	  cVibrate = maxVibrate - resultDMA[2];
+	  dutycycleVibrate = (1 - cVibrate/pVibrate) * 100;
+	  sprintf(buf, "light = %d %c,humid = %d %c, Vibration = %d \r\n" , dutycycleLight, '%',dutycycleHumid, '%', dutycycleVibrate);
+	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
 	  /* This is for callibration, report max/min
 	  if (minLightSensor >= resultDMA[0]) {
 		  minLightSensor = resultDMA[0];
 	  }
 	  if (maxLightSensor < resultDMA[0]) {
-	  		  maxLightSensor = resultDMA[0];
+	  		  maxLightSensor = [0];
 	  }
 	  if (minHumidSensor >= resultDMA[1]) {
 		  minHumidSensor = resultDMA[1];
@@ -148,8 +165,9 @@ int main(void)
 	  }
 	  sprintf (buf, "minL = %d, maxL = %d, minH = %d ,maxH = %d\r\n" , minLightSensor, maxLightSensor, minHumidSensor, maxHumidSensor);
 	  */
-	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
-	  HAL_Delay(100);
+	  sprintf(buf,"%d %d %d\n",dutycycleLight,dutycycleHumid,dutycycleVibrate);
+	  send_to_nodeMCU(buf);
+	  HAL_Delay(2000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -297,6 +315,39 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
 
 }
 
