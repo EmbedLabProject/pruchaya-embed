@@ -66,11 +66,22 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 void send_to_nodeMCU(char buf[256]) {
+	char acknowledge[1];
+
 	int string_length = strlen(buf);
 	for(int i = 0;i < string_length;i++) {
+		// Transmit character by character
 		HAL_UART_Transmit(&huart1, buf + i, 1, 1000);
-		char* acknowledge;
-		HAL_UART_Receive(&huart1,acknowledge,1,500);
+		HAL_UART_Receive(&huart1, acknowledge ,1, 1000);
+
+		char gg[256];
+		sprintf(gg, "sent %d : %c\r\n", i, acknowledge[0]);
+		HAL_UART_Transmit(&huart2, gg, strlen(gg), 1000);
+
+		// Check the acknowledge for echo, If the receive if not the one sent, send again.
+		if(acknowledge[0] != buf[i]) {
+			--i;
+		}
 	}
 }
 /* USER CODE END 0 */
@@ -118,7 +129,6 @@ int main(void)
   int dutycycleLight = 0;
   int dutycycleHumid = 0;
   int dutycycleVibrate = 0;
-  int dutycycle4 = 0;
   double cLight;
   double pLight = maxLight - minLight;
   double cHumid;
@@ -137,10 +147,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  // Start DMA
 	  HAL_ADC_Start_DMA(&hadc1, (uint32_t*) resultDMA, channelCount);
-	  while (conversionComplete == 0) { //do something while current data is not recieve from sensor
+	  // Wait for sensor read ok.
+	  while (conversionComplete == 0) {
 
 	  }
+	  // Convert value into %
 	  conversionComplete = 0;
 	  cLight = maxLight - resultDMA[0];
 	  dutycycleLight = (1 - cLight/pLight)*100;
@@ -150,23 +163,10 @@ int main(void)
 	  dutycycleVibrate = (1 - cVibrate/pVibrate) * 100;
 	  sprintf(buf, "light = %d %c,humid = %d %c, Vibration = %d \r\n" , dutycycleLight, '%',dutycycleHumid, '%', dutycycleVibrate);
 	  HAL_UART_Transmit(&huart2, buf, strlen(buf), 1000);
-	  /* This is for callibration, report max/min
-	  if (minLightSensor >= resultDMA[0]) {
-		  minLightSensor = resultDMA[0];
-	  }
-	  if (maxLightSensor < resultDMA[0]) {
-	  		  maxLightSensor = [0];
-	  }
-	  if (minHumidSensor >= resultDMA[1]) {
-		  minHumidSensor = resultDMA[1];
-	  }
-	  if (maxHumidSensor < resultDMA[1]) {
-	  	  maxHumidSensor = resultDMA[1];
-	  }
-	  sprintf (buf, "minL = %d, maxL = %d, minH = %d ,maxH = %d\r\n" , minLightSensor, maxLightSensor, minHumidSensor, maxHumidSensor);
-	  */
+	  // Transmit to nodemcu.
 	  sprintf(buf,"%d %d %d\n",dutycycleLight,dutycycleHumid,dutycycleVibrate);
 	  send_to_nodeMCU(buf);
+
 	  HAL_Delay(2000);
     /* USER CODE END WHILE */
 

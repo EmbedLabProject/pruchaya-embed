@@ -3,50 +3,73 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecureBearSSL.h>
-EspSoftwareSerial::UART testSerial;
 
+EspSoftwareSerial::UART UART_STM32;
 
-const char* ssid = "MARK_HOMELAND_2.4G";
-const char* password = "markthitrin";
+const char* ssid = "Mark";
+const char* password = "1234567ww";
 
-const String backendurl = "http://192.168.1.102:3222";
+const String backendUrl = "https://pruchaya-deploy-backend.onrender.com";
 const String deviceId = "69420";
 
 unsigned long lastTime = 0;
 unsigned long timerDelay = 5000;
 
+unsigned long lastTimeSensor = 0;
+unsigned long sensorFetchTimeout = 0;  
+
+char buffer[256];
+int bufferI = 0;
 String curLightValue = "0";
 String curHumidValue = "0";
 String curVibrateValue = "0";
-char buffer[256];
-int buffer_i = 0;
 
 void get_sensor() {
-  while (testSerial.available() > 0) {
-    // recieve and echo back for acknowledge
-    char input = testSerial.read();
-    testSerial.print(input);
+  while (UART_STM32.available() > 0) {
+    // Recieve and echo back for acknowledge
+    char input = UART_STM32.read();
+    UART_STM32.print(input);
 
-    buffer[buffer_i++] = input;
-    if(buffer[buffer_i - 1] != '\n') {
+    // Put character into buffer until getting '\n'
+    buffer[bufferI++] = input;
+    if(bufferI >= 256) { 
+      bufferI = 0;
+    }
+    if(input != '\n') {
       continue;
     }
 
+    // Transfer string in buffer
     String data[4];
-    int data_i = 0;
-    for(int i = 0 ;i < buffer_i;i++) {
+    int dataI = 0;
+    for(int i = 0 ;i < bufferI;i++) {
       if(isDigit(buffer[i])) {
-        data[data_i] += buffer[i];
+        data[dataI] += buffer[i];
       }
       else{
-        data_i++;
+        dataI++;
+      }
+
+      if(dataI >= 4){
+        break;
       }
     }
+
     curLightValue = data[0];
+    if(curLightValue.length() == 0) {
+      curLightValue = "0";
+    }
     curHumidValue = data[1];
+    if(curHumidValue.length() == 0) {
+      curHumidValue = "0";
+    }
     curVibrateValue = data[2];
-    buffer_i = 0;
-    data_i = 0;
+    if(curVibrateValue.length() == 0) {
+      curVibrateValue = "0";
+    }
+
+    bufferI = 0;
+    dataI = 0;
     break;
   }
 }
@@ -55,38 +78,39 @@ void send_data() {
   if((millis() - lastTime) > timerDelay) {
     
     if(WiFi.status() == WL_CONNECTED){
-      lastTime = millis();
+      // Create WIFI client
+      // Use httpClient(*client,severPath) if the server rquire https(http with "s")
       std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
-      // Ignore SSL certificate validation
       client->setInsecure();
-
+      // Use httpClient(clientNonSecure,severPath) for http server
       WiFiClient clientNonSecure;
 
-      //create an HTTPClient instance
-      HTTPClient https;
+      // Create an HTTPClient instance and send post request.
+      HTTPClient httpClient;
+      httpClient.setTimeout(5000);
+      String serverPath = backendUrl + "/sensors/update";
+      httpClient.begin(*client, "https://pruchaya-deploy-backend.onrender.com/sensors/update");
+      httpClient.addHeader("Content-Type", "application/json");
+      String body = "{\"device_id\":\"" + deviceId + 
+                    "\",\"light\":\"" + curLightValue + 
+                    "\",\"humidity\":\"" + curHumidValue + 
+                    "\",\"vibration\":\"" + curVibrateValue + "\"}";
+      int httpResponseCode = httpClient.POST(body);
 
-      String serverPath = backendurl + "/sensors/update";
-      //
-      //
-      
-      https.begin(clientNonSecure, serverPath);
-      https.addHeader("Content-Type", "application/json");
-      https.addHeader("ngrok-skip-browser-warning", "69420");
-
-      String body = "{\"device_id\":\"" + deviceId + "\",\"light\":\"" + curLightValue + "\",\"humidity\":\""+curHumidValue+"\",\"vibration\":\""+curVibrateValue+"\"}";
-      Serial.println(body);
-
-      int httpResponseCode = https.POST(body);
-      Serial.print("String: ");
-      Serial.println(https.getString());
+      // check respone code and print serial
       Serial.print("HTTP Response code: ");
       Serial.println(httpResponseCode);
       if(httpResponseCode < 0) {
-        Serial.println(https.errorToString(httpResponseCode).c_str());
+        Serial.println("(" + httpClient.errorToString(httpResponseCode) + ")");
       }
-      https.end();
-      Serial.println("sent");
-      Serial.println(curLightValue + " " + curHumidValue + " " + curVibrateValue);
+
+      // End request
+      httpClient.end();
+
+      Serial.print("Value sent : ");
+      Serial.println("Light : " + curLightValue + ",Humidity : " + curHumidValue + ",Vibration : " + curVibrateValue);
+
+      lastTime = millis();
     }
     else {
       Serial.println("Wifi disconnected");
@@ -95,10 +119,11 @@ void send_data() {
 }
 
 void setup() {
-  testSerial.begin(115200, EspSoftwareSerial::SWSERIAL_8N1, D7, D8, false, 95, 11);
+  // Init UART connecting to STM32
+  UART_STM32.begin(115200, EspSoftwareSerial::SWSERIAL_8N1, D7, D8, false, 95, 11);
+  // Init Serial for debuging
   Serial.begin(9600);
-
-  // connecting to WIFI
+  // Init WIFI
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("Connecting");
@@ -113,4 +138,5 @@ void setup() {
 void loop() {
   get_sensor();
   send_data();
+  delay(100);
 }
